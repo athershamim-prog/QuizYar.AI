@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Yaar AI</title>
+    <style>
+        :root { --primary: #1e3c72; --secondary: #2a5298; --accent: #f39c12; --danger: #d63031; }
+        * { box-sizing: border-box; }
+        body { font-family: sans-serif; background: #f0f2f5; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        #quiz-container { background: white; width: 100%; max-width: 850px; border-radius: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.1); padding: 40px; text-align: center; }
+        .hidden { display: none !important; }
+        .header-panel { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 30px; border-radius: 20px; margin-bottom: 20px; }
+        .selection-group { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+        select, input, .btn { padding: 12px 20px; border-radius: 10px; border: 1px solid #ddd; font-size: 16px; font-weight: 700; cursor: pointer; transition: 0.3s; }
+        .btn-go { background: var(--accent); color: white; border: none; }
+        .btn-tournament { background: var(--danger); color: white; width: 100%; padding: 20px; font-size: 20px; margin-top: 15px; border: none; }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); opacity: 0.9; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        #timer { font-size: 50px; font-weight: 900; color: var(--danger); margin: 15px 0; }
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .opt-btn { background: white; border: 2px solid #ddd; padding: 15px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .opt-btn:hover:not(:disabled) { border-color: var(--primary); background: #f8f9fa; }
+        #loading { color: white; font-weight: bold; margin-top: 10px; }
+        .summary-item { text-align: left; background: #f9f9f9; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ddd; }
+        .summary-correct { border-left-color: #2ecc71; }
+        .summary-wrong { border-left-color: #e74c3c; }
+        #congrats-msg { font-size: 22px; font-weight: 800; color: var(--primary); margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="quiz-container">
+    <div id="lobby">
+        <div class="header-panel">
+            <h1>🚀 QuizYar.AI</h1>
+            <p>Type a Subject, Topic or Event.</p>
+            <div class="selection-group">
+                <input type="text" id="sub-input" placeholder="e.g. French Revolution, Cricket, Space">
+                <select id="lvl-pick">
+                    <option value="Easy">Easy</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Hard">Hard</option>
+                </select>
+                <button class="btn btn-go" onclick="startWithAI(10)">START QUIZ</button>
+            </div>
+            <div id="loading" class="hidden">🚀 QuizYar.AI is Generating Questions...</div>
+        </div>
+        <button class="btn btn-tournament" onclick="startWithAI(20)">🏆 All Category Quiz (20 AI Qs)</button>
+    </div>
+
+    <div id="quiz-ui" class="hidden">
+        <div id="q-counter" style="font-weight: bold; color: var(--secondary); margin-bottom: 10px;">Question 1 of 10</div>
+        <div id="timer">15</div>
+        <h3 id="q-text">Question...</h3>
+        <div id="opt-container" class="options-grid"></div>
+        
+        <div style="margin-top: 20px;">
+            <button id="next-btn" class="btn btn-go" style="width: 100%;" onclick="nextQuestion()" disabled>NEXT QUESTION ➔</button>
+        </div>
+    </div>
+
+    <div id="result-ui" class="hidden">
+        <div id="congrats-msg"></div>
+        <h1 id="final-score">0/0</h1>
+        <div id="summary-log" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px; padding: 10px;"></div>
+        <button class="btn btn-go" onclick="location.reload()">BACK TO MENU</button>
+    </div>
+</div>
+
+<script>
+var MY_API_KEY = "AIzaSyARVWs62gty1rxQ02v6Cyw5Xr2cF264Y_o"; 
+
+var activeQs = [];
+var resultsData = [];
+var idx = 0;
+var score = 0;
+var timer;
+
+async function startWithAI(count) {
+    var subject = document.getElementById("sub-input").value || "General Knowledge";
+    var level = document.getElementById("lvl-pick").value;
+    var loader = document.getElementById("loading");
+    
+    loader.innerText = "🚀 QuizYar.AI is Generating Questions...";
+    loader.classList.remove("hidden");
+
+    var modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest"];
+    
+    for (var m = 0; m < modelsToTry.length; m++) {
+        try {
+            var currentModel = modelsToTry[m];
+            var prompt = "Generate exactly " + count + " different MCQs with " + level + " difficulty on the topic: " + subject + ". Include a one-sentence explanation for the correct answer.";
+            
+            var url = "https://generativelanguage.googleapis.com/v1beta/models/" + currentModel + ":generateContent?key=" + MY_API_KEY;
+            
+            var response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "ARRAY",
+                            items: {
+                                type: "OBJECT",
+                                properties: {
+                                    q: { type: "STRING" },
+                                    a: { type: "ARRAY", items: { type: "STRING" } },
+                                    c: { type: "STRING" },
+                                    e: { type: "STRING" }
+                                },
+                                required: ["q", "a", "c", "e"]
+                            }
+                        }
+                    }
+                })
+            });
+
+            if (!response.ok) continue;
+
+            var data = await response.json();
+            if (data.candidates && data.candidates[0].content.parts[0]) {
+                activeQs = JSON.parse(data.candidates[0].content.parts[0].text.trim());
+                loader.classList.add("hidden");
+                document.getElementById("lobby").classList.add("hidden");
+                document.getElementById("quiz-ui").classList.remove("hidden");
+                idx = 0; score = 0; resultsData = [];
+                showQ();
+                return; 
+            }
+        } catch (e) { console.error("Model " + modelsToTry[m] + " failed."); }
+    }
+    loader.innerText = "⚠️ Failed to reach AI. Check your connection.";
+}
+
+function showQ() {
+    clearInterval(timer);
+    if(idx >= activeQs.length) { end(); return; }
+    
+    document.getElementById("q-counter").innerText = "Question " + (idx + 1) + " of " + activeQs.length;
+    document.getElementById("next-btn").disabled = true;
+
+    var t = 15;
+    document.getElementById("timer").innerText = t;
+    timer = setInterval(function() {
+        t--;
+        document.getElementById("timer").innerText = t;
+        if(t <= 0) handle("TIMEOUT");
+    }, 1000);
+
+    var q = activeQs[idx];
+    document.getElementById("q-text").innerText = q.q;
+    var box = document.getElementById("opt-container");
+    box.innerHTML = "";
+    
+    var shuffledAns = [...q.a].sort(function() { return 0.5 - Math.random(); });
+    shuffledAns.forEach(function(o) {
+        var b = document.createElement('button');
+        b.className = "opt-btn";
+        b.innerText = o;
+        b.onclick = function() { handle(o); };
+        box.appendChilgamesd(b);
+    });
+}
+
+function handle(p) {
+    clearInterval(timer);
+    var q = activeQs[idx];
+    var isCorrect = (p === q.c);
+    if(isCorrect) score++;
+
+    resultsData.push({
+        question: q.q, userAns: p, correctAns: q.c, explanation: q.e, correct: isCorrect
+    });
+
+    var btns = document.querySelectorAll(".opt-btn");
+    btns.forEach(function(btn) {
+        btn.disabled = true;
+        if(btn.innerText === q.c) btn.style.borderColor = "#2ecc71";
+        if(btn.innerText === p && !isCorrect) btn.style.borderColor = "#e74c3c";
+    });
+
+    document.getElementById("next-btn").disabled = false;
+}
+
+function nextQuestion() {
+    idx++;
+    showQ();
+}
+
+function end() {
+    document.getElementById("quiz-ui").classList.add("hidden");
+    document.getElementById("result-ui").classList.remove("hidden");
+    
+    var msgBox = document.getElementById("congrats-msg");
+    var percent = (score / activeQs.length) * 100;
+    
+    if (score === activeQs.length) msgBox.innerText = "🏆 PERFECT! You are a Quiz Legend!";
+    else if (percent >= 80) msgBox.innerText = "🌟 Outstanding! You've mastered this topic!";
+    else if (percent >= 50) msgBox.innerText = "👍 Good Job! You're learning fast!";
+    else msgBox.innerText = "📚 Keep Practicing! Knowledge is power.";
+
+    document.getElementById("final-score").innerText = "Final Score: " + score + " / " + activeQs.length;
+
+    var logBox = document.getElementById("summary-log");
+    logBox.innerHTML = "<h3>Review Summary:</h3>";
+    resultsData.forEach(function(res) {
+        var div = document.createElement("div");
+        div.className = "summary-item " + (res.correct ? "summary-correct" : "summary-wrong");
+        div.innerHTML = "<strong>Q: " + res.question + "</strong><br>" +
+                        "Your Answer: " + (res.userAns === "TIMEOUT" ? "Time Out" : res.userAns) + "<br>" +
+                        "Correct: " + res.correctAns + "<br>" +
+                        "<small><em>" + res.explanation + "</em></small>";
+        logBox.appendChild(div);
+    });
+}
+</script>
+</body>
+</html>
