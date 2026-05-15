@@ -1,3 +1,11 @@
+// NOTE: This serverless function is temporarily disabled.
+// Re-enable once Gemini API issues are resolved:
+// 1. Uncomment this file
+// 2. Update index.html to call /api/generate instead of Gemini directly
+// 3. Add GEMINI_API_KEY env variable in Vercel settings
+// 4. Remove MY_API_KEY from index.html
+
+/*
 export default async function handler(req, res) {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -50,3 +58,4 @@ export default async function handler(req, res) {
 
     res.status(500).json({ error: "All Gemini models failed." });
 }
+*/

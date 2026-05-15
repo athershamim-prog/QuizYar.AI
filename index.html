@@ -69,6 +69,8 @@
 </div>
 
 <script>
+var MY_API_KEY = "AIzaSyARVWs62gty1rxQ02v6Cyw5Xr2cF264Y_o";
+
 var activeQs = [];
 var resultsData = [];
 var idx = 0;
@@ -83,28 +85,54 @@ async function startWithAI(count) {
     loader.innerText = "🚀 QuizYar.AI is Generating Questions...";
     loader.classList.remove("hidden");
 
-    try {
-        var response = await fetch("/api/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ subject, level, count })
-        });
+    var modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest"];
 
-        if (!response.ok) {
-            var err = await response.json();
-            loader.innerText = "⚠️ Failed: " + (err.error || "Unknown error");
-            return;
-        }
+    for (var m = 0; m < modelsToTry.length; m++) {
+        try {
+            var currentModel = modelsToTry[m];
+            var prompt = "Generate exactly " + count + " different MCQs with " + level + " difficulty on the topic: " + subject + ". Include a one-sentence explanation for the correct answer.";
 
-        activeQs = await response.json();
-        loader.classList.add("hidden");
-        document.getElementById("lobby").classList.add("hidden");
-        document.getElementById("quiz-ui").classList.remove("hidden");
-        idx = 0; score = 0; resultsData = [];
-        showQ();
-    } catch (e) {
-        loader.innerText = "⚠️ Failed to reach AI. Check your connection.";
+            var url = "https://generativelanguage.googleapis.com/v1beta/models/" + currentModel + ":generateContent?key=" + MY_API_KEY;
+
+            var response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "ARRAY",
+                            items: {
+                                type: "OBJECT",
+                                properties: {
+                                    q: { type: "STRING" },
+                                    a: { type: "ARRAY", items: { type: "STRING" } },
+                                    c: { type: "STRING" },
+                                    e: { type: "STRING" }
+                                },
+                                required: ["q", "a", "c", "e"]
+                            }
+                        }
+                    }
+                })
+            });
+
+            if (!response.ok) continue;
+
+            var data = await response.json();
+            if (data.candidates && data.candidates[0].content.parts[0]) {
+                activeQs = JSON.parse(data.candidates[0].content.parts[0].text.trim());
+                loader.classList.add("hidden");
+                document.getElementById("lobby").classList.add("hidden");
+                document.getElementById("quiz-ui").classList.remove("hidden");
+                idx = 0; score = 0; resultsData = [];
+                showQ();
+                return;
+            }
+        } catch (e) { console.error("Model " + modelsToTry[m] + " failed."); }
     }
+    loader.innerText = "⚠️ Failed to reach AI. Check your connection.";
 }
 
 function showQ() {
