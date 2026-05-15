@@ -92,7 +92,7 @@ async function startWithAI(count) {
 
         if (!response.ok) {
             var err = await response.json();
-            loader.innerText = "⚠️ Failed: " + (err.error || "Unknown error");
+            loader.innerText = "⚠️ " + (err.error || "Something went wrong. Please try again.");
             return;
         }
 

@@ -3,8 +3,10 @@ export default async function handler(req, res) {
 
     const { subject, level, count } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
-    const models = ["gemini-2.5-flash", "gemini-2.0-flash"];
+    const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-8b"];
     const prompt = `Generate exactly ${count} different MCQs with ${level} difficulty on the topic: ${subject}. Include a one-sentence explanation for the correct answer.`;
+
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
     for (const model of models) {
         try {
@@ -33,6 +35,15 @@ export default async function handler(req, res) {
                 })
             });
 
+            if (response.status === 429) {
+                const errData = await response.json();
+                const retryDelay = errData?.error?.details?.find(d => d.retryDelay)?.retryDelay;
+                const seconds = retryDelay ? parseInt(retryDelay) : 10;
+                console.warn(`Rate limited on ${model}, waiting ${seconds}s before next model...`);
+                await sleep(seconds * 1000);
+                continue;
+            }
+
             if (!response.ok) {
                 console.warn(`Skipping ${model}: HTTP ${response.status}`);
                 continue;
@@ -48,5 +59,5 @@ export default async function handler(req, res) {
         }
     }
 
-    res.status(500).json({ error: "All Gemini models failed." });
+    res.status(429).json({ error: "AI is busy right now — please wait a moment and try again." });
 }
