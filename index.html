@@ -69,7 +69,7 @@
 </div>
 
 <script>
-var MY_API_KEY = "AIzaSyARVWs62gty1rxQ02v6Cyw5Xr2cF264Y_o";
+var MY_API_KEY = "AIzaSyDBIJV5qrrFf-EfksUB3nSFJyvUK1FqYuQ";
 
 var activeQs = [];
 var resultsData = [];
@@ -85,7 +85,7 @@ async function startWithAI(count) {
     loader.innerText = "🚀 QuizYar.AI is Generating Questions...";
     loader.classList.remove("hidden");
 
-    var modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest"];
+    var modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash"];
 
     for (var m = 0; m < modelsToTry.length; m++) {
         try {
